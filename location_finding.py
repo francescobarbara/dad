@@ -195,7 +195,7 @@ class HiddenObjects(nn.Module):
                 run_df["observations"] = run_ys
                 run_df["order"] = list(range(1, self.T + 1))
                 run_df["run_id"] = i + 1
-                output.append(run_df)
+                output.append(run_df)           #there is a run_df for each run (by run we mean a choice of theta, and a whole experiment run), the network is obvs fixed
                 true_thetas.append(true_theta.numpy())
         print(pd.concat(output))
         return pd.concat(output), true_thetas
@@ -228,7 +228,7 @@ def single_run(
 
     ### Set up model ###
     n = 1  # batch dim
-    encoder = EncoderNetwork((n, p), n, hidden_dim, encoding_dim)
+    encoder = EncoderNetwork((n, p), n, hidden_dim, encoding_dim)        #creating the nets
     emitter = EmitterNetwork(encoding_dim, (n, p))
     # Design net: takes pairs [design, observation] as input
     if design_network_type == "static":
@@ -239,7 +239,7 @@ def single_run(
     elif design_network_type == "dad":
         design_net = SetEquivariantDesignNetwork(
             encoder, emitter, empty_value=torch.ones(n, p) * 0.01
-        ).to(device)
+        ).to(device)                                                #nnet invariant to permutations, puts them together as in (17), check folder for details
     else:
         raise ValueError(f"design_network_type={design_network_type} not supported.")
 
@@ -275,8 +275,8 @@ def single_run(
     ### Prior hyperparams ###
     # The prior is K independent * p-variate Normals. For example, if there's 1 source
     # (K=1) in 2D (p=2), then we have 1 bivariate Normal.
-    theta_prior_loc = torch.zeros((K, p), device=device)  # mean of the prior
-    theta_prior_covmat = torch.eye(p, device=device)  # covariance of the prior
+    theta_prior_loc = torch.zeros((K, p), device=device)  # mean of the prior        #CHANGE PRIOR HERE
+    theta_prior_covmat = torch.eye(p, device=device)  # covariance of the prior      #CHANGE COV HERE
     # noise of the model: the sigma in N(G(theta, xi), sigma)
     noise_scale_tensor = noise_scale * torch.tensor(
         1.0, dtype=torch.float32, device=device
