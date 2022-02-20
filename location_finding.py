@@ -32,10 +32,10 @@ class EncoderNetwork(nn.Module):
     """Encoder network for location finding example"""
 
     def __init__(self, design_dim, osbervation_dim, hidden_dim, encoding_dim):
-        super().__init__()
+        super().__init__()   #makes you inherit stuff from the nn.Module classzx
         self.encoding_dim = encoding_dim
-        self.design_dim_flat = design_dim[0] * design_dim[1]
-        input_dim = self.design_dim_flat + osbervation_dim
+        self.design_dim_flat = design_dim[0] * design_dim[1]   #in our case it will be 2x1 or 1x2 i.e. x-y plane
+        input_dim = self.design_dim_flat + osbervation_dim  #observation is the intensity observed, so it will be 1dim
 
         self.linear1 = nn.Linear(input_dim, hidden_dim)
         self.output_layer = nn.Linear(hidden_dim, encoding_dim)
@@ -43,10 +43,10 @@ class EncoderNetwork(nn.Module):
         self.softplus = nn.Softplus()
 
     def forward(self, xi, y, **kwargs):
-        xi = xi.flatten(-2)
-        inputs = torch.cat([xi, y], dim=-1)
+        xi = xi.flatten(-2)    #it flattens the 2nd to last dimension of xi (since xi is 2 dim above, it will make it 1dim)
+        inputs = torch.cat([xi, y], dim=-1)     #concatenates 1dim vectors xi and y to create the nnet input
 
-        x = self.linear1(inputs)
+        x = self.linear1(inputs)    
         x = self.relu(x)
         x = self.output_layer(x)
         return x
@@ -62,7 +62,7 @@ class EmitterNetwork(nn.Module):
         self.linear = nn.Linear(encoding_dim, self.design_dim_flat)
 
     def forward(self, r):
-        xi_flat = self.linear(r)
+        xi_flat = self.linear(r)            #no non-linearity, just matrix mult from 16 to 2, then reshape
         return xi_flat.reshape(xi_flat.shape[:-1] + self.design_dim)
 
 
@@ -72,12 +72,12 @@ class HiddenObjects(nn.Module):
     def __init__(
         self,
         design_net,
-        base_signal=0.1,  # G-map hyperparam
+        base_signal=0.1,  # G-map hyperparam    #these are the b and m of expression (124)
         max_signal=1e-4,  # G-map hyperparam
-        theta_loc=None,  # prior on theta mean hyperparam
-        theta_covmat=None,  # prior on theta covariance hyperparam
-        noise_scale=None,  # this is the scale of the noise term
-        p=1,  # physical dimension
+        theta_loc=None,  # prior on theta mean hyperparam   #the mean which is 0_d in (125)
+        theta_covmat=None,  # prior on theta covariance hyperparam   #the covariance I_d in (125)
+        noise_scale=None,  # this is the scale of the noise term    #sigma in (125)
+        p=1,  # physical dimension    #if we are in 1,2 or 3 dimensions
         K=1,  # number of sources
         T=2,  # number of experiments
     ):
@@ -86,11 +86,11 @@ class HiddenObjects(nn.Module):
         self.base_signal = base_signal
         self.max_signal = max_signal
         # Set prior:
-        self.theta_loc = theta_loc if theta_loc is not None else torch.zeros((K, p))
-        self.theta_covmat = theta_covmat if theta_covmat is not None else torch.eye(p)
+        self.theta_loc = theta_loc if theta_loc is not None else torch.zeros((K, p))    #weird, you can have K different priors for the means
+        self.theta_covmat = theta_covmat if theta_covmat is not None else torch.eye(p)  #but a single prior for the covariance of coordinatewise locations
         self.theta_prior = dist.MultivariateNormal(
             self.theta_loc, self.theta_covmat
-        ).to_event(1)
+        ).to_event(1)                           #https://pytorch.org/docs/stable/distributions.html   can sample from it, #to_event says that dimension is 1 (Pyro)
         # Observations noise scale:
         self.noise_scale = noise_scale if noise_scale is not None else torch.tensor(1.0)
         self.n = 1  # batch=1
@@ -98,12 +98,12 @@ class HiddenObjects(nn.Module):
         self.K = K  # number of sources
         self.T = T  # number of experiments
 
-    def forward_map(self, xi, theta):
+    def forward_map(self, xi, theta):               #THIS IS WHAT YOU DEFINITELY WANT TO CHANGE
         """Defines the forward map for the hidden object example
         y = G(xi, theta) + Noise.
         """
         # two norm squared
-        sq_two_norm = (xi - theta).pow(2).sum(axis=-1)
+        sq_two_norm = (xi - theta).pow(2).sum(axis=-1)    #ricorda di usare pow
         sq_two_norm_inverse = (self.max_signal + sq_two_norm).pow(-1)
         # sum over the K sources, add base signal and take log.
         mean_y = torch.log(self.base_signal + sq_two_norm_inverse.sum(-1, keepdim=True))
@@ -116,7 +116,7 @@ class HiddenObjects(nn.Module):
         ########################################################################
         # Sample latent variables theta
         ########################################################################
-        theta = latent_sample("theta", self.theta_prior)
+        theta = latent_sample("theta", self.theta_prior)     #simply samples from the given distribution, look at oed/primitives for code, non si capisce un cazzo
         y_outcomes = []
         xi_designs = []
 
@@ -124,14 +124,14 @@ class HiddenObjects(nn.Module):
         for t in range(self.T):
             ####################################################################
             # Get a design xi; shape is [num-outer-samples x 1 x 1]
-            ####################################################################
+            ####################################################################  #you're picking the next xi by feeding the network (self.design_net) xi_designs and y_outcomes
             xi = compute_design(
                 f"xi{t + 1}", self.design_net.lazy(*zip(xi_designs, y_outcomes))
             )
 
             ####################################################################
             # Sample y at xi; shape is [num-outer-samples x 1]
-            ####################################################################
+            ####################################################################    #qui potresti solo cambiare forward_map e lasci il gaussian noise con standard dev noise_scale
             mean = self.forward_map(xi, theta)
             sd = self.noise_scale
             y = observation_sample(f"y{t + 1}", dist.Normal(mean, sd).to_event(1))
@@ -151,7 +151,7 @@ class HiddenObjects(nn.Module):
         designs = []
         observations = []
 
-        with torch.no_grad():
+        with torch.no_grad():     #it means you're not computing gradients, as you're evaluating the network, not training it
             trace = pyro.poutine.trace(model).get_trace()
             for t in range(self.T):
                 xi = trace.nodes[f"xi{t + 1}"]["value"]
