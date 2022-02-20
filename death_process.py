@@ -47,7 +47,7 @@ class EncoderNetwork(nn.Module):
         super().__init__()
         self.encoding_dim = encoding_dim
         self.activation_layer = activation()
-        self.input_layer = nn.Linear(design_dim + osbervation_dim, hidden_dim)
+        self.input_layer = nn.Linear(design_dim + osbervation_dim, hidden_dim)       #you feed \xi and \y
         if n_hidden_layers > 1:
             self.middle = nn.Sequential(
                 *[
