@@ -323,7 +323,7 @@ def single_run(
         # Log every 50 losses -> too slow (and unnecessary to log everything)
         if i % 50 == 0:
             num_steps_range.set_description("Loss: {:.3f} ".format(loss))
-            loss_eval = oed.evaluate_loss()
+            loss_eval = oed.evaluate_loss()                         #maybe change this
             mlflow.log_metric("loss", loss_eval)
         # Decrease LR at every 1K steps
         if i % 1000 == 0:
